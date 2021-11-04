@@ -1,0 +1,38 @@
+<apex:page standardController="Account">
+
+    <!--
+        The dialog.js and dialog.css are required to use Dialog.showAlert and Dialog.showConfirm
+    -->
+    <script type="text/javascript" src="{!URLFOR($Resource.dialog_samples, 'dialog.js')}" />
+    <link rel="stylesheet" href="{!URLFOR($Resource.dialog_samples, 'dialog.css')}" />
+    
+    <h1>Edit Account Name</h1><br/><br/>
+    <apex:form id="theForm">
+        <apex:inputField id="accountNameField" value="{!Account.Name}" />
+        <br/>
+        <apex:commandButton id="save" action="{!save}" value="Save" onclick="event.preventDefault(); Dialog.showConfirm('Are you sure?', () => { validateAndSubmit(this) })" />
+    </apex:form>
+    
+    <script>
+        function isValidAccountName(name) {
+            return name && /^[a-zA-Z0-9\s]*$/g.test(name);
+        }
+        
+        function validateAndSubmit(theButton) {
+            var field = document.getElementById('{!$Component.theForm.accountNameField}');
+            return new Promise((resolve, reject) => {                
+                if (isValidAccountName(field.value)) {                    
+                    var hiddenInput = document.createElement('input');
+                    hiddenInput.setAttribute('name', theButton.id);            
+                    hiddenInput.setAttribute('value', theButton.value);
+                    hiddenInput.setAttribute('type', 'hidden');
+                    theButton.form.appendChild(hiddenInput);
+                    theButton.form.submit();
+                } else {
+                    Dialog.showAlert('Account name has invalid characters');
+                    return false;
+                }    
+            });                       
+        }
+    </script>
+</apex:page>
