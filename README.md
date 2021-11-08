@@ -2,6 +2,15 @@
 
 Custom dialogs to replace native alert and confirm.
 
+## Introduction
+The dialog.js in this sample project provides **showAlert()** and **showConfirm()** which can be used to display an alert and confirm dialog in Visualforce pages.\
+
+**Note:** The native Window alert() and confirm() are synchronous meaning other codes will be blocked until the dialog is closed.  On the other hand, the dialog used
+in **showAlert()** or **showConfirm()** is asynchronous; therefore when using this dialog in a situation where a post action depends on the result returned from
+the dialog, some synchronization is needed to prevent the action to continue before the dialog is closed.  For example when a user displays a confirmation dialog before
+submitting the form, need to use **event.preventDefault()**  to prevent form submission.
+
+
 ## Installation Instructions
 
 ### Prerequisites
