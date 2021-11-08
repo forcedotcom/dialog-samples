@@ -6,6 +6,16 @@
  *       is needed to prevent form submission.
  * 
  * @example:
+ *    The following example shows how to use Dialog.showConfirm() to replace the window.confirm() in 
+ *    <apex:form>
+ * 
+ *    <!-- Use window.confirm() to prompt the user before form submission:
+ *    <apex:form id="theForm">
+ *       <apex:commandButton id="save" action="{!save}" value="Save"
+ *             onclick="if (!confirm('are you sure?')) { return false; }" />
+ *    </apex:form>
+ * 
+ *    <!-- Replaces the window.confirm() with Dialog.showConfirm() -->
  *    <apex:form id="theForm">
  *       <apex:commandButton id="save" action="{!save}" value="Save"
  *             onclick="event.preventDefault(); Dialog.showConfirm('Are you sure?', () => { this.form.submit()) })" />
@@ -25,7 +35,6 @@ var Dialog = {
             contentClass: "contentInfo",
             iconClass: "infoLarge",
             getIconAlt: "Information"
-
         },
 
         CONFIRM: {
