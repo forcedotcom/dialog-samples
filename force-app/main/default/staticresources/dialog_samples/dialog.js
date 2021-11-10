@@ -1,9 +1,9 @@
 /*
  * Provides showAlert() and showConfirm() to replace native alert() and confirm() respectively.
  *
- * NOTE: the showAlert() and showConfirm() display asynchronous dialogs which do not block other
- *       code execution.  When using these showAlert() and showConfirm(), additional consideration
- *       is needed to prevent form submission.
+ * NOTE: the showAlert() and showConfirm() are asynchronous which do not suspend code execution.
+ *       When using showAlert() and showConfirm(), additional consideration is needed to
+ *       prevent form submission.
  * 
  * @example:
  *    The following example shows how to use Dialog.showConfirm() to replace the window.confirm() in 
@@ -163,21 +163,8 @@ OverlayDialog.prototype.show = function() {
     this.background.style.display = 'block';    
     this.dialog.style.visibility = 'visible';
     this.isOpen = true;
-    // We delay this by 1ms so that the overlay has a chance to position itself
-    // otherwise it will sometimes display at its previous position.
-    delay(this.setPrimaryFocus, 1, this, []);
+    this.setPrimaryFocus();
 };
-
-function delay(func, delay, context, args) {
-    args = args || [];
-    context = context || window;     
-    return {
-    		timeoutId : setTimeout(function() {
-            				func.apply(context, args);
-    			        }, delay),
-            cancel: function() { clearTimeout(this.timeoutId); }
-    };
-}
 
 /**
  * Moves focus to the appropriate element within the dialog, unless that element is disabled.
@@ -198,14 +185,14 @@ OverlayDialog.prototype.setPrimaryFocus = function(wrapping) {
 
 function setFocusIfNotDisabled(elementId) {
     var focusElement = document.getElementById(elementId);
-    console.log('focusElement: ' + focusElement);
-    if (focusElement !== null && focusElement.disabled !== true) {
+    if (!focusElement) {
+        throw new Error('Element with id ' + elementId + ' could not be focused because it does not exist');
+    }
+    if (focusElement.disabled !== true) {
         try {
             focusElement.focus();
         } catch (ignore) {            
         }
-    } else {
-        throw new Error(elementId + ' could not be focused');
     }
 };
 
@@ -260,26 +247,6 @@ OverlayDialog.prototype.createDialog = function() {
         self.setPrimaryFocus(true);
     });
 
-    // if user gets behind mask somehow, put them back in the dialog
-    addEvent(document.body, 'keyup', function() {
-        if (self && self.isOpen) {
-            var e = document.activeElement;
-            var isInDialog = true;
-            while (true) {
-                if (e.id == self.id) {
-                    break;
-                }
-                else if (e === document.body) {
-                    isInDialog = false;
-                    break;
-                }
-                e = e.parentNode;
-            }
-            if (!isInDialog) {
-                self.setPrimaryFocus();
-            }
-        }
-    });
     this.createContent();
     this.created = true;
 };
