@@ -1,0 +1,149 @@
+.dialogClose,
+.dialogCloseOn {
+	background-image: url(img/dialogClose16.gif);
+	background-position: 0 0;
+	width: 16px;
+	height: 16px;
+	float: right;
+	cursor: pointer;
+	background-position: top left;
+	text-indent: -999em;
+	overflow: hidden
+}
+
+.dialogCloseOn {
+	background-position: top right
+}
+
+.dialogCloseOn:focus {
+	outline: 1px dotted #000
+}
+
+.overlayDialog {
+	position: fixed;
+	display: none;
+	visibility: hidden;
+	z-index: 50101;
+	top: 40px;
+	left: 150px
+}
+
+.absolutePositionedOverlayDialog {
+	position: absolute
+}
+
+.cssDialog {
+	top: 25%;
+	left: 50%
+}
+
+.overlayBackground {
+	background-color: #fff;
+	border: none;
+	display: none;
+	opacity: .6;
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 50100
+}
+
+.overlayDialog .topLeft {
+	padding: 4px 2px 6px 12px;
+	background: transparent url(img/overlaytopleft.gif) no-repeat top left
+}
+
+.overlayDialog .movable {
+	cursor: move
+}
+
+.overlayDialog .topLeft h2 {
+	color: #fff;
+	font-size: 1.1em
+}
+
+.overlayDialog .topRight {
+	padding-right: 6px;
+	background: transparent url(img/overlaytopright.gif) no-repeat top right
+}
+
+.overlayDialog .middle {
+	background-color: #f5f5f5;
+	border-left: 1px solid #393a3c;
+	border-right: 1px solid #393a3c
+}
+
+.overlayDialog .innerContent {
+	padding: 12px 16px 8px 20px
+}
+
+.overlayDialog .innerContent h2 {
+	font-family: 'Arial';
+	font-size: 1.4em
+}
+
+.overlayDialog .innerContent p {
+	margin: 8px 0
+}
+
+.overlayDialog .innerContent .infoImage {
+	float: left;
+	height: 100%;
+	width: 60px
+}
+
+.overlayDialog .innerContent .buttons {
+	text-align: center;
+	padding-top: 12px
+}
+
+.overlayDialog .innerContent .buttons .btn,
+.overlayDialog .innerContent .buttons .btnDisabled,
+.overlayDialog .innerContent .buttons .btnDisabled {
+	margin: 0 10px 0 0;
+	min-width: 50px
+}
+
+.overlayDialog .bottomLeft {
+	height: 4px;
+	background: transparent url(img/overlaybottomleft.gif) no-repeat bottom left
+}
+
+.overlayDialog .bottomRight {
+	height: 4px;
+	padding-right: 4px;
+	background: transparent url(img/overlaybottomright.gif) no-repeat bottom right
+}
+
+.backgroundConfirm {
+	background-color: #e7f8e6
+}
+
+.backgroundInfo {
+	background-color: #dae5f2
+}
+
+.contentConfirm {
+	border: 1px solid #3ca500
+}
+
+.contentInfo {
+	border: 1px solid #287fe1
+}
+
+.confirmLarge {
+	background-image: url(img/confirm32.png);
+	background-position: 0 0;
+	width: 32px;
+	height: 32px
+}
+
+.infoLarge { 
+    background-image: url(img/info32.png);
+    background-position: 0px 0px;
+    width: 32px;
+    height: 32px;
+}
+
+
+
