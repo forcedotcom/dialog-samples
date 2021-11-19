@@ -111,6 +111,8 @@ function OverlayDialog(config) {
     this.isAbsolutePositioned = false;
     this.focusPointId = null;
     this.wrappingPointId = null;
+    // same as wrappingPointId but in reverse order: shift+tab
+    this.reverseWrappingPointId = null; 
     this.message = config.message;
     this.backgroundClass = config.backgroundClass;
     this.contentClass = config.contentClass;
@@ -170,10 +172,14 @@ OverlayDialog.prototype.show = function() {
  * Moves focus to the appropriate element within the dialog, unless that element is disabled.
  *
  * @param wrapping - true if wrapping focus to avoid tabbing off the dialog rather than focusing on show.
+ * @param reverse - true if the tabbing is in reverse, ie: shift + tab.
  */
-OverlayDialog.prototype.setPrimaryFocus = function(wrapping) {       
+ OverlayDialog.prototype.setPrimaryFocus = function(wrapping, reverse) {       
     if (wrapping === true) {
-        if (this.wrappingPointId !== null) {
+        if (reverse && this.reverseWrappingPointId !== null) {
+            setFocusIfNotDisabled(this.reverseWrappingPointId);
+        }
+        else if (this.wrappingPointId !== null) {
             setFocusIfNotDisabled(this.wrappingPointId);
         }
     } else {
@@ -245,6 +251,17 @@ OverlayDialog.prototype.createDialog = function() {
     // if user tries to tab off the bottom of dialog, wrap around to start    
     addEvent(document.getElementById(this.blurCatchId), 'focus', function() {
         self.setPrimaryFocus(true);
+    });    
+
+    // if user tries to shift+tab off the top of dialog, wrap around to the
+    // last control
+    addEvent(document.getElementById(this.focusPointId), 'focus', function() {
+        self.setPrimaryFocus(true, true);
+    });
+
+    // Handle ESC closing the dialog
+    addEvent(document, 'keydown', function(e) {
+        self.handleKeyPress(e);
     });
 
     this.createContent();
@@ -283,6 +300,8 @@ OverlayDialog.prototype.getContent = function() {
         html.push(this.actionLabels[i]);
         html.push("'");
         html.push("/>");
+        // Assuming that the buttons are last visible control on the dialog
+        this.reverseWrappingPointId = this.id + 'button' + i;
     }
     html.push("</div>");
     return html.join("");
@@ -317,8 +336,7 @@ OverlayDialog.prototype.createDialogElement = function() {
     html.push("href='javascript:void(0)' ");
     html.push("onclick='return false;' ");
     html.push("style='" + OverlayDialog.HIDDEN_STYLE + "' ");
-    html.push("title='startOfDialog' ");
-    html.push("onfocus='document.getElementById(\""+this.wrappingPointId+"\").focus()'");    
+    html.push("title='startOfDialog' ");    
     html.push(">");
     html.push("startOfDialog");
     html.push("</a>");
@@ -351,6 +369,15 @@ OverlayDialog.prototype.doAction = function(index) {
         this.actions[index]();
     }
 };
+
+OverlayDialog.prototype.handleKeyPress = function(e) {
+    if (this.isOpen) {
+        e = getEvent(e);
+        if (e.keyCode == 27) {  // ESC
+            this.cancel();
+        }
+    }
+}
 
 function EventData(e, type, fn, useCap) {
     this.element = e;
