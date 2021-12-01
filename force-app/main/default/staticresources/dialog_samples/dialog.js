@@ -79,7 +79,7 @@ var Dialog = {
             actions: actions,
             actionLabels: actionLabels,
             ...type       
-        }
+        };
         
         var dialog = new OverlayDialog(config);
         this.registerDialog(dialog);
@@ -200,7 +200,7 @@ function setFocusIfNotDisabled(elementId) {
         } catch (ignore) {            
         }
     }
-};
+}
 
 /*
  * Hides the dialog after the OK button or X is clicked.
@@ -280,7 +280,7 @@ OverlayDialog.prototype.getContent = function() {
     html.push(this.iconClass);
     html.push("' alt='");
     html.push(this.iconAlt);
-    html.push("'></td><td style='padding-left: 8px; vertical-align: top; line-height: 16px'>")
+    html.push("'></td><td style='padding-left: 8px; vertical-align: top; line-height: 16px'>");
     html.push(this.message);
     html.push("</td></tr></table>");
     html.push("<div class='buttons'>");
@@ -377,7 +377,7 @@ OverlayDialog.prototype.handleKeyPress = function(e) {
             this.cancel();
         }
     }
-}
+};
 
 function EventData(e, type, fn, useCap) {
     this.element = e;
