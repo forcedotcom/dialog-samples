@@ -372,7 +372,6 @@ OverlayDialog.prototype.doAction = function(index) {
 
 OverlayDialog.prototype.handleKeyPress = function(e) {
     if (this.isOpen) {
-        e = getEvent(e);
         if (e.keyCode == 27) {  // ESC
             this.cancel();
         }
