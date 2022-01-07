@@ -1,4 +1,11 @@
 /*
+ * Copyright (c) 2022, salesforce.com, inc.
+ * All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
+ * For full license text, see the LICENSE file in the repo root or https://opensource.org/licenses/BSD-3-Clause
+ */
+
+/*
  * Provides showAlert() and showConfirm() to replace native alert() and confirm() respectively.
  *
  * NOTE: the showAlert() and showConfirm() are asynchronous which do not suspend code execution.
