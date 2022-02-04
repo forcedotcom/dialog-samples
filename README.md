@@ -1,14 +1,13 @@
 # Sample Dialogs
 
-Custom modal dialogs to replace the native alert and confirm dialogs.
+Custom modal dialogs to replace the native alert, confirm, and prompt dialogs.
 
 ## Introduction
-This project introduces **showAlert()** and **showConfirm()** in the dialog.js file. These functions allow users to display alert and confirm modal dialogs in Visualforce pages.
-The dialog.js in this sample project provides **showAlert()** and **showConfirm()** which can be used to display an alert and confirm dialog in Visualforce pages.\
+This project introduces `Dialog.alert()`, `Dialog.confirm()`, and `Dialog.prompt()` functions in the `dialog.js` file. These functions allow users to display alert, confirm, and prompt modal dialogs in Visualforce pages.
 
-**Note:** The native **alert()** and **confirm()** functions are synchronous. When a native dialog is open on a page, other code running on the page is halted until the native dialog is closed.\
+**Note:** The native browser `alert()`, `confirm()`, and `prompt()` functions are synchronous. When a native dialog is open on a page, other code running on the page is halted until the native dialog is closed.\
 
-**showAlert()** or **showConfirm()** are asynchronous. This means that post actions such as form submissions will proceed even if a modal is open. To pause a post action until a modal dialog is closed, users must implement **event.preventDefault()** in addition to **showAlert()** or **showConfirm()()**.
+`Dialog.alert()`, `Dialog.confirm()`, and `Dialog.prompt()` are asynchronous. This means that post actions such as form submissions will proceed even if a modal is open. To pause a post action until a modal dialog is closed, users must implement `event.preventDefault()` in addition to these 3 provided functions.
 
 
 ## Installation Instructions
