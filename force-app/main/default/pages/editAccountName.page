@@ -8,7 +8,7 @@
 <apex:page standardController="Account">
 
     <!--
-        The dialog.js and dialog.css are required to use Dialog.showAlert and Dialog.showConfirm
+        The dialog.js and dialog.css are required to use Dialog.alert, Dialog.confirm, and Dialog.prompt
     -->
     <script type="text/javascript" src="{!URLFOR($Resource.dialog_samples, 'dialog.js')}" />
     <link rel="stylesheet" href="{!URLFOR($Resource.dialog_samples, 'dialog.css')}" />
@@ -17,7 +17,7 @@
     <apex:form id="theForm">
         <apex:inputField id="accountNameField" value="{!Account.Name}" />
         <br/>
-        <apex:commandButton id="save" action="{!save}" value="Save" onclick="event.preventDefault(); Dialog.showConfirm('Are you sure?', () => { validateAndSubmit(this) })" />
+        <apex:commandButton id="save" action="{!save}" value="Save" onclick="event.preventDefault(); Dialog.confirm('Are you sure?', {ok: 'OK', cancel: 'Cancel'}, () => { validateAndSubmit(this) })" />
     </apex:form>
     
     <script>
@@ -36,7 +36,7 @@
                     theButton.form.appendChild(hiddenInput);
                     theButton.form.submit();
                 } else {
-                    Dialog.showAlert('Account name has invalid characters');
+                    Dialog.alert('Account name has invalid characters', {ok: 'OK'});
                     return false;
                 }    
             });                       

@@ -6,442 +6,449 @@
  */
 
 /*
- * Provides showAlert() and showConfirm() to replace native alert() and confirm() respectively.
- *
- * NOTE: the showAlert() and showConfirm() are asynchronous which do not suspend code execution.
- *       When using showAlert() and showConfirm(), additional consideration is needed to
- *       prevent form submission.
+ * A Dialog component implementation that can replace the native browser dialogs:
+ * alert, confirm, prompt
  * 
+ * NOTE: The native browser dialogs are synchronous by design. This implementation is asynchronous.
+ *       When using this implementation additional consideration is needed to handle the asynchronous nature.
+ * 
+ * API:
+ *  Dialog.alert(msg, opts, cb);
+ *  Dialog.confirm(msg, opts, cb);
+ *  Dialog.prompt(msg, opts, cb);
+ * 
+ * where
+ *   msg {String} A message to display in the dialog
+ *   opts {Object} Must contain "ok" and "cancel" properties for localized button labels
+ *   cb {Function} The callback function to be invoked when user closes the dialog. The return value is same as native browser apis.
+ *
+ * Events:
+ *   You can attach event listeners for these events emitted by this component:
+ *   "ready" - dialog is created and attached to DOM
+ *   "open" - dialog has been opened
+ *   "close" - dialog has been closed
+ *  
  * @example:
- *    The following example shows how to use Dialog.showConfirm() to replace the window.confirm() in 
- *    <apex:form>
- * 
- *    <!-- Use window.confirm() to prompt the user before form submission:
- *    <apex:form id="theForm">
- *       <apex:commandButton id="save" action="{!save}" value="Save"
- *             onclick="if (!confirm('are you sure?')) { return false; }" />
- *    </apex:form>
- * 
- *    <!-- Replaces the window.confirm() with Dialog.showConfirm() -->
- *    <apex:form id="theForm">
- *       <apex:commandButton id="save" action="{!save}" value="Save"
- *             onclick="event.preventDefault(); Dialog.showConfirm('Are you sure?', () => { this.form.submit()) })" />
- *    </apex:form>
- * 
+ *   <apex:commandButton id="save" action="{!save}" value="Save"
+ *     onclick="event.preventDefault(); Dialog.confirm(
+ *       'Are you sure?', 
+ *       {ok: 'Ok', cancel: 'Cancel'},
+ *       (ret) => { if(ret) this.form.submit()) }
+ *     )" />
  */
-var Dialog = {
-    dialogs: {},
-    num: 0,
-    getNextId: function() {
-        return "simpleDialog" + Dialog.num++;
-    },
 
-    types: {
-        INFO: {
-            backgroundClass: "backgroundInfo",
-            contentClass: "contentInfo",
-            iconClass: "infoLarge",
-            getIconAlt: "Information"
-        },
+let Dialog = (() => {
 
-        CONFIRM: {
-            backgroundClass: "backgroundConfirm",
-            contentClass: "contentConfirm",
-            iconClass: "confirmLarge",
-            getIconAlt: "Confirmation"
-        }
-    },
+	const TO_FOCUS_ON = [
+		'a[href]:not([tabindex^="-"])',
+		'area[href]:not([tabindex^="-"])',
+		'input:not([type="hidden"]):not([type="radio"]):not([disabled]):not([tabindex^="-"])',
+		'input[type="radio"]:not([disabled]):not([tabindex^="-"])',
+		'select:not([disabled]):not([tabindex^="-"])',
+		'textarea:not([disabled]):not([tabindex^="-"])',
+		'button:not([disabled]):not([tabindex^="-"])',
+		'iframe:not([tabindex^="-"])',
+		'audio[controls]:not([tabindex^="-"])',
+		'video[controls]:not([tabindex^="-"])',
+		'[contenteditable]:not([tabindex^="-"])',
+		'[tabindex]:not([tabindex^="-"])'
+	].join(',');
 
-    /*
-     * Shows a modal dialog to display a message.
-     * @param message - message to be displayed in the modal dialog.
-     */
-    showAlert: function(message) {
-        Dialog.createSimpleDialog(message, Dialog.types.INFO).show();
-    },
+	const CLOSER_ATTR = 'data-sfdc-dialog-closer';
+	const ID_PREFIX = 'sfdcDialog';  // prefix of the dialog ID attribute
+	let num = 0; // counter value, appended to ID_PREFIX to make multiple nested dialog DOM elements unique
 
-    /*
-     * Shows a modal dialog to prompt user to confirm an action.
-     * @param message - question to the user.
-     * @param onOK - function to execute after user confirms the action.
-     */
-    showConfirm: function(message, onOK) {
-        Dialog.createSimpleDialog(message, Dialog.types.CONFIRM, onOK).show();
-    },
+	// CSS class names
+	const CSS = {
+		Buttons: 'sfdc-dialog-buttons',
+		DialogContainer: 'sfdc-dialog-container',
+		DialogContent: 'sfdc-dialog-content',
+		PrimaryButton: 'sfdc-dialog-button-primary',
+		Overlay: 'sfdc-dialog-overlay'
+	}
 
-    createSimpleDialog: function(message, type, onOK) {
-        var actions = [];
-        var actionLabels;
- 
-        if (onOK) {             
-            actions = [onOK, null];
-            actionLabels = ["ok", "cancel"];
-        } else {
-            actionLabels= ["ok"];            
-        }
+	// Event names
+	const EVENTS = {
+		Close: 'close',
+		Open: 'open',
+		Ready: 'ready'
+	}
 
-        var config = {
-            id: Dialog.getNextId(),
-            message: message,
-            actions: actions,
-            actionLabels: actionLabels,
-            ...type       
-        };
-        
-        var dialog = new OverlayDialog(config);
-        this.registerDialog(dialog);
-        return dialog;
-    },
+	/** A basic dialog component that can replace native alert/confirm/prompt browser functions */
+	class ACPDialog {
 
-    registerDialog: function(dialog) {
-        Dialog.dialogs[dialog.id] = dialog;
-    },
+		/**
+		 * Constructor
+		 *
+		 * @constructor
+		 * @param {String} message the message to display in the UI
+		 * @param {Object} opts addtional "options" for the dialog, e.g. labels of buttons "ok" and "cancel"
+		 * @param {Function} cb the callback function to invoke when the user "closes" the dialog
+		 * @param {Object} defaultValue For prompt dialogs, the defaultValue to return if the user enters nothing
+		 */
+		constructor(message, opts, cb, defaultValue) {
+			// Memoize bound functions to not lose the "this" value in event listeners
+			this._close = this.close.bind(this);
+			this._focusListener = this._focusListener.bind(this);
+			this._keydownListener = this._keydownListener.bind(this);
 
-    getDialogById: function(id) {
-        return Dialog.dialogs[id];
-    }
-};
+			this._isOpen = false;
+			this._previousFocusElement = null;
+			this._listeners = {};
+			this._cb = cb;
+			this._opts = opts;
 
-/*
- * A modal dialog using CSS
- */
-OverlayDialog.MAX_WIDTH = 400;
-OverlayDialog.HIDDEN_STYLE = "width:2px;height:2px;position:absolute;border:0;margin:0;padding:0;background:none;outline:none;z-index:-1;cursor:none;";
+			this.$el = this._initDOM(message, defaultValue);
+			this._id = this.$el.id;
 
-function OverlayDialog(config) {
-    this.id = config.id;
-    this.dialog = null; // to hold the div element once it has been created
-    this.background = null; // create the background lazily
-    this.width = OverlayDialog.MAX_WIDTH;
-    this.isOpen = false;
-    this.created = false;
-    this.isAbsolutePositioned = false;
-    this.focusPointId = null;
-    this.wrappingPointId = null;
-    // same as wrappingPointId but in reverse order: shift+tab
-    this.reverseWrappingPointId = null; 
-    this.message = config.message;
-    this.backgroundClass = config.backgroundClass;
-    this.contentClass = config.contentClass;
-    this.iconClass = config.iconClass;
-    this.iconAlt = config.geticonAlt;
-    this.actions = config.actions;
-    this.actionLabels = config.actionLabels;  
+			// Attach event listeners to newly created DOM element
+			return this._attachListeners();
+		}
 
-    // track original window overflow - scrolling disabled when modal dialog is open
-    this.htmlOverflow = '';    
-}
+		/** Create the dynamic DOM element(s) for the dialog and append to DOM */
+		_initDOM(message, defaultValue) {
+			const id = `${ID_PREFIX}${num++}`;
+			const inputElement = this._getInputElement(defaultValue);
+			const cancelButton = this._getCancelButton();
+			const okButton = this._getOkButton();
 
-/*
- * Sets the desired width, default to MAX_WIDTH.
- * @param width - the desired width in pixels.
- */
-OverlayDialog.prototype.setWidth = function(width) {
-    this.width = width;
-    if (this.dialog) {
-        if (width !== undefined && width !== null) {
-            if (typeof width == 'string') {
-                this.dialog.style.width = width;
-            } else {
-                this.dialog.style.width = width + 'px';
-            }
-        }
-        if (this.isOpen) {
-            this.position();
-        }
-    }
-};
+			let el = document.createElement('div');
+			ACPDialog.setAttributes(el, {
+				id: id,
+				'class': CSS.DialogContainer,
+				role: 'alertdialog',
+				'aria-labelledby': message,
+				'aria-hidden': 'true',
+				'aria-modal': 'true',
+				tabindex: '-1'
+			});
 
-/*
- * Displays the dialog after creation.
- */
-OverlayDialog.prototype.show = function() {   
-    var oe = this.getPageOverflowElement();
-    this.htmlOverflow = oe.style.overflow;
-    oe.style.overflow = 'hidden';
-    
-    if (!this.dialog) {
-        this.createDialog();
-    }
-    this.dialog.style.display = 'block';
-    this.position();
+			el.innerHTML = `
+		<div class="${CSS.Overlay}"></div>
+		<div role="document" class="${CSS.DialogContent}">
+			<p>${message}</p>
+			${inputElement}
+			<div class="${CSS.Buttons}">
+				${cancelButton}
+				${okButton}
+			</div>
+		</div>`;
 
-    if (!this.background) {
-        this.createBackground();
-    }
-    this.background.style.display = 'block';    
-    this.dialog.style.visibility = 'visible';
-    this.isOpen = true;
-    this.setPrimaryFocus();
-};
+			document.body.appendChild(el);
+			return el;
+		}
 
-/**
- * Moves focus to the appropriate element within the dialog, unless that element is disabled.
- *
- * @param wrapping - true if wrapping focus to avoid tabbing off the dialog rather than focusing on show.
- * @param reverse - true if the tabbing is in reverse, ie: shift + tab.
- */
- OverlayDialog.prototype.setPrimaryFocus = function(wrapping, reverse) {       
-    if (wrapping === true) {
-        if (reverse && this.reverseWrappingPointId !== null) {
-            setFocusIfNotDisabled(this.reverseWrappingPointId);
-        }
-        else if (this.wrappingPointId !== null) {
-            setFocusIfNotDisabled(this.wrappingPointId);
-        }
-    } else {
-        if (this.focusPointId !== null) {
-            setFocusIfNotDisabled(this.focusPointId);
-        }   
-    }
-};
+		/**
+		 * Attach listeners to the dialog DOM elements
+		 * 
+		 * @return {this}
+		 */
+		_attachListeners() {
+			// Att of dialog closers, each of which will be bound a click event listener to close the dialog
+			this._closers = ACPDialog.$$(`[${CLOSER_ATTR}]`, this.$el);
+			this._closers.forEach( (closer) => {
+				closer.addEventListener('click', this._close);
+			});
 
-function setFocusIfNotDisabled(elementId) {
-    var focusElement = document.getElementById(elementId);
-    if (!focusElement) {
-        throw new Error('Element with id ' + elementId + ' could not be focused because it does not exist');
-    }
-    if (focusElement.disabled !== true) {
-        try {
-            focusElement.focus();
-        } catch (ignore) {            
-        }
-    }
-}
+			return this._fire(EVENTS.Ready);
+		}
 
-/*
- * Hides the dialog after the OK button or X is clicked.
- */
-OverlayDialog.prototype.hide = function() {
-    this.background.style.display = 'none';    
-    this.dialog.style.visibility = 'hidden';
-    this.dialog.style.display = 'none';
-    this.getPageOverflowElement().style.overflow = this.htmlOverflow;    
-    this.htmlOverflow = "";
-    this.isOpen = false;
-};
+		/**
+		 * Open the dialog, i.e. make it visible. While open the focus will
+		 * stay within the dialog even during keyboard events/navigation.
+		 *
+		 * @param {Event} event the browser event that initiated this "open" call
+		 * @return {this}
+		 */
+		open(event) {
+			if (this._isOpen) {  // do nothing if already open
+				return this;
+			}
 
-OverlayDialog.prototype.getPageOverflowElement = function() {
-    return document.documentElement;    
-};
+			this._previousFocusElement = document.activeElement; // Remember previously focused element
+			this.$el.removeAttribute('aria-hidden');
 
-/**
- * called when clicking on the X to get out of the dialog
- */
-OverlayDialog.prototype.cancel = function() {
-    this.hide();
-};
+			// Put focus inside the dialog
+			this._focusOnDialog();
 
-OverlayDialog.prototype.position = function() {
-    if (!this.dialog) {
-        return;
-    }
-    var dialogStyle = this.dialog.style;
-    dialogStyle.marginTop = ((-0.25)*this.dialog.offsetHeight) + 'px';
-    dialogStyle.marginLeft = ((-0.5)*this.dialog.offsetWidth) + 'px';    
-};
+			// Attach focus & keyboard listeners (ESC & TAB)
+			document.body.addEventListener('focus', this._focusListener, true);
+			document.addEventListener('keydown', this._keydownListener);
 
-OverlayDialog.prototype.createBackground = function() {
-    this.background = document.createElement('div');
-    this.background.className = "overlayBackground";
-    this.background.style.width = "10000px";
-    this.background.style.height = "20000px";        
-    document.body.appendChild(this.background);
-};
+			this._isOpen = true;
+			return this._fire(EVENTS.Open, event);
+		}
 
-OverlayDialog.prototype.createDialog = function() {
-    this.dialog = this.createDialogElement();
-    document.body.appendChild(this.dialog);
-    this.setWidth(this.width);
+		/**
+		 * Close the dialog, i.e. remove it from the DOM. Cleanup all the listeners.
+		 *
+		 * @param {Event} event the browser event that initiated this "close" call
+		 * @return {this}
+		 */
+		close(event) {
+			if (!this._isOpen) {  // do nothing if already closed
+				return this;
+			}
 
-    var self = this;
-    // if user tries to tab off the bottom of dialog, wrap around to start    
-    addEvent(document.getElementById(this.blurCatchId), 'focus', function() {
-        self.setPrimaryFocus(true);
-    });    
+			this.$el.setAttribute('aria-hidden', 'true');
 
-    // if user tries to shift+tab off the top of dialog, wrap around to the
-    // last control
-    addEvent(document.getElementById(this.focusPointId), 'focus', function() {
-        self.setPrimaryFocus(true, true);
-    });
+			// Restore focus
+			if (this._previousFocusElement && this._previousFocusElement.focus) {
+				this._previousFocusElement.focus();
+			}
 
-    // Handle ESC closing the dialog
-    addEvent(document, 'keydown', function(e) {
-        self.handleKeyPress(e);
-    });
+			// Cleanup event listeners
+			document.body.removeEventListener('focus', this._focusListener, true);
+			document.removeEventListener('keydown', this._keydownListener);
 
-    this.createContent();
-    this.created = true;
-};
+			this._closers.forEach((closer) => {
+				closer.removeEventListener('click', this._close);
+			});
 
-OverlayDialog.prototype.createContent = function() {
-    var content = document.getElementById(this.getContentId());    
-    content.innerHTML = this.getContent();
-    return content;
-};
+			// Release listeners from memory
+			this._listeners = {};
+			this._isOpen = false;
 
-OverlayDialog.prototype.getContent = function() {
-    var html = [];
-    html.push("<table border='0'><tr><td style='vertical-align: top'><img src='/img/s.gif' class='");
-    html.push(this.iconClass);
-    html.push("' alt='");
-    html.push(this.iconAlt);
-    html.push("'></td><td style='padding-left: 8px; vertical-align: top; line-height: 16px'>");
-    html.push(this.message);
-    html.push("</td></tr></table>");
-    html.push("<div class='buttons'>");
-    for (var i = 0; i < this.actionLabels.length; i++) {
-        html.push("<input type='button' id='");
-        html.push(this.id);
-        html.push("button");
-        html.push(i);
-        html.push("' onclick='");
-        html.push("Dialog.getDialogById(\"");
-        html.push(this.id);
-        html.push("\").doAction(");
-        html.push(i);
-        html.push(")' class='");
-        html.push("btn"); 
-        html.push("' value='");
-        html.push(this.actionLabels[i]);
-        html.push("'");
-        html.push("/>");
-        // Assuming that the buttons are last visible control on the dialog
-        this.reverseWrappingPointId = this.id + 'button' + i;
-    }
-    html.push("</div>");
-    return html.join("");
-};
+			// Cleanup DOM
+			document.body.removeChild(this.$el);
 
-OverlayDialog.prototype.createDialogElement = function() {
-    this.blurCatchId = this.id+"BlurCatch";
-    this.focusPointId = this.id+"FocusPoint";
+			// Execute callback function
+			if(this._cb && typeof this._cb === 'function') {
+				this._executeCallback(event);
+			}
 
-    // Wrap back around to the 'x' when the user tabs past the last focusable thing in the overlay.
-    this.wrappingPointId = this.id+"X";
-    var titleId = this.id+"Title";
-    var div = document.createElement("div");
-    div.id = this.id;
-    div.setAttribute("role", "dialog");
-    div.setAttribute("aria-live", "assertive");
-    div.setAttribute("aria-describedby", titleId);
+			return this._fire(EVENTS.Close, event);
+		}
 
-    var classes = ["overlayDialog", 'cssDialog'];
-    if (this.isAbsolutePositioned) {
-        classes.push("absolutePositionedOverlayDialog");
-    }
-    classes.push(this.extraClass);
-    div.className = classes.join(" ");
+		/**
+		 * Register a listener for an event emitted by this class
+		 *
+		 * @param {String} the event type
+		 * @param {Function} listener the listener to invoke when this event fires
+		 */
+		on(type, listener) {
+			if( type && typeof type === 'string' && typeof listener === 'function') {
+				if (typeof this._listeners[type] === 'undefined') {
+					this._listeners[type] = [];
+				}
 
-    var html = [];
-    html.push("<div class='topRight");
+				this._listeners[type].push(listener);
+			}
+			return this;
+		}
 
-    html.push("'");
-    html.push(">");
-    html.push("<a id='" + this.focusPointId + "' ");
-    html.push("href='javascript:void(0)' ");
-    html.push("onclick='return false;' ");
-    html.push("style='" + OverlayDialog.HIDDEN_STYLE + "' ");
-    html.push("title='startOfDialog' ");    
-    html.push(">");
-    html.push("startOfDialog");
-    html.push("</a>");
-    html.push("<div class='topLeft'>");
-    
-    // Handle closing X
-    html.push("<a id='"+this.wrappingPointId+"' title='close' tabindex='0' onmouseover=\"this.className = 'dialogCloseOn'\" onmouseout=\"this.className = 'dialogClose'\" onclick=\"var dlg = Dialog.getDialogById('");
-    html.push(this.id);
-    html.push("');");      
-    html.push("dlg.cancel()\" href='javascript:void(0)' class='dialogClose'>" + "close" + "</a>");
-    
-    html.push("<h2 id='"  + titleId + "'>");
-    html.push("</h2></div></div><div class='middle'><div class='innerContent' id='");
-    html.push(this.getContentId());
-    html.push("'></div></div>");
+		/**
+		 * Unregister a listener
+		 *
+		 * @param {String} type the event type
+		 * @param {Function} listener the listener to unregister
+		 */
+		off(type, listener) {
+			let index = (this._listeners[type] || []).indexOf(listener);
 
-    html.push("<div class='bottomRight'");
-    html.push("><label style=\"display:none;\" for ="+"\""+this.blurCatchId+"\""+">'&nbsp;'</label><input id='" + this.blurCatchId + "' style='" + OverlayDialog.HIDDEN_STYLE + "' type='text' /><div class='bottomLeft'></div></div>");
-    div.innerHTML = html.join("");
-    return div;
-};
+			if (index >= 0) {
+				this._listeners[type].splice(index, 1);
+			}
 
-OverlayDialog.prototype.getContentId = function() {
-    return this.id + "Content";
-};
+			return this;
+		}
 
-OverlayDialog.prototype.doAction = function(index) {
-    this.hide();
-    if (this.actions[index] && typeof this.actions[index] == "function") {
-        this.actions[index]();
-    }
-};
+		/**
+		 * Invoke any registered listeners for given event type.
+		 *
+		 * @param {String} type the event type
+		 * @param {Event} event the DOM event that triggered this class event
+		 */
+		_fire(type, event) {
+			let listeners = this._listeners[type];
+			if( listeners && listeners.forEach) {
+				listeners.forEach((listener) => {
+					listener(this.$el, event);
+				});
+			}
 
-OverlayDialog.prototype.handleKeyPress = function(e) {
-    if (this.isOpen) {
-        if (e.keyCode == 27) {  // ESC
-            this.cancel();
-        }
-    }
-};
+			return this;
+		}
 
-function EventData(e, type, fn, useCap) {
-    this.element = e;
-    this.type = type;
-    this.handler = fn;
-    this.useCapture = useCap;
-}
+		/**
+		 * Listener for specific key presses (ESC and TAB, to close and keep focus).
+		 *
+		 * @param {Event} event the DOM keyboard event
+		 */
+		_keydownListener(event) {
+			// Ensure we only are listening to events for this dialog, in case of nested/multiple dialogs (BAD UX practice!)
+			if (!this.$el.contains(document.activeElement)) return;
 
-var eventRegistry;
-var addEvent = function () {
-    if (window.addEventListener) {
-        return function (obj, evType, fn, useCapture) {
-            obj.addEventListener(evType, fn, useCapture);
-            if (!eventRegistry) {
-                eventRegistry = [];
-                window.addEventListener('unload', cleanupEvents, false);
-            }
-            eventRegistry.push(new EventData(obj, evType, fn, useCapture));
-        };
-    } else if (window.attachEvent) {
-        return function (obj, evType, fn, useCapture) {
-            var r = obj.attachEvent("on" + evType, fn);
-            if (!eventRegistry) {
-                eventRegistry = [];
-                window.attachEvent("onunload", cleanupEvents);
-            }
-            eventRegistry.push(new EventData(obj, evType, fn));
-            return r;
-        };
-    }
-    return function () {
-        return null;
-    };
-}();
+			if (this._isOpen) {
+				switch(event.which) {
+					case 9: // TAB
+						this._tabKeydownListener(event); // Keep focus trapped within this dialog
+						break;
+					case 27: // ESC
+						event.preventDefault();
+						this._close(event, true); // Close this dialog
+						break;
+				}
+			}
+		}
 
-var removeEvent = function () {
-    if (window.removeEventListener) {
-        return function (obj, evType, fn, useCapture) {
-            obj.removeEventListener(evType, fn, useCapture);
-        };
-    } else if (window.detachEvent) {
-        return function (obj, evType, fn, useCapture) {
-            obj.detachEvent('on' + evType, fn);
-        };
-    }
-    return function () {
-        return null;
-    };
-}();
+		/** Set focus on first element with `autofocus` or dialog */
+		_focusOnDialog() {
+			let focused = this.$el.querySelector('[autofocus]') || this.$el;
+			if(focused && focused.focus) focused.focus();
+		}
 
-function cleanupEvents() {
-    if (eventRegistry) {
-        for (var i = 0; i < eventRegistry.length; i++) {
-            var evt = eventRegistry[i];
-            removeEvent(evt.element, evt.type, evt.handler, evt.useCapture);
-        }
-        // unlink circular refrences so they can be GC'd
-        eventRegistry = null;
-        removeEvent(window, "unload", cleanupEvents, false);
-    }
-}
+		/**
+		 * Listener for focus events to keep focus within dialog
+		 *
+		 * @param {Event} event the DOM event that triggered this listener
+		 */
+		_focusListener(event) {
+			// If focus is not within this dialog element move it back to its first focusable child
+			if (this._isOpen && !event.target.closest('[aria-modal="true"]')) {
+				this._focusOnDialog();
+			}
+		}
+
+		/**
+		 * Listener to TAB keydown events. Keeps focus within this dialog.
+		 * @param {Event} event the DOM event that triggered this listener
+		 */
+		_tabKeydownListener(event) {
+			let focusableChildren = ACPDialog.$$(TO_FOCUS_ON, this.$el).filter((child) => {
+				return !!( child.offsetWidth || child.offsetHeight || child.getClientRects().length);
+			});
+
+			let focusedItemIndex = focusableChildren.indexOf(document.activeElement);
+
+			// If SHIFT+TAB and at "top" of dialog move focus to the last focusable item inside the dialog
+			if (event.shiftKey && focusedItemIndex === 0) {
+				focusableChildren[focusableChildren.length - 1].focus();
+				event.preventDefault();
+				// If not SHIFT and at "bottom" of dialog move focus to first focusable item inside dialog
+			} else if (!event.shiftKey && focusedItemIndex === focusableChildren.length - 1) {
+				focusableChildren[0].focus();
+				event.preventDefault();
+			}
+		}
+	}
+
+	/**
+	 * Helper function to set DOM attributes on a element using a simple map object
+	 * 
+	 * @param {Object} element the element to set the attributes on
+	 * @param {Object} map the Map of attribute names to values
+	 */
+	ACPDialog.setAttributes = function(element,map) {
+		if(element && element.setAttribute && map) {
+			for(const [key, value] of Object.entries(map))
+				element.setAttribute(key,value);
+		}
+	}
+
+	/**
+	 * Better/helper version of document.querySelectorAll()
+	 *
+	 * @param {String} selector the CSS selector
+	 * @param {Element} [context = document] the context element, used to scope the query
+	 * @return {Array<Element>} all descendat elements matching the query
+	 */
+	ACPDialog.$$ = function(selector, context) {
+		return Array.prototype.slice.call(((context || document).querySelectorAll(selector)));
+	}
+
+	/** An Alert dialog to replace native browser alert() function */
+	class AlertDialog extends ACPDialog {
+		_getInputElement() {
+			return '';
+		}
+
+		_getCancelButton() {
+			return '';
+		}
+
+		_getOkButton() {
+			return `<button type="button" autofocus ${CLOSER_ATTR} class="${CSS.PrimaryButton}">${this._opts.ok}</button>`;
+		}
+
+		_executeCallback(e) {
+			this._cb();
+		}
+	}
+
+	/** Abstract class with common code for both Confirm and Prompt dialogs */
+	class CPDialog extends ACPDialog {
+		_getOkButton() {
+			return `<button type="button" ${CLOSER_ATTR} class="${CSS.PrimaryButton}">${this._opts.ok}</button>`;
+		}
+
+		_isOkButtonEvent(e) {
+			return e && e.target && e.target.classList ? e.target.classList.contains(CSS.PrimaryButton) : false;
+		}
+	}
+
+	/** A Confirm dialog to replace native browser confirm() function */
+	class ConfirmDialog extends CPDialog {
+		_getInputElement() {
+			return '';
+		}
+
+		_getCancelButton() {
+			return `<button type="button" autofocus ${CLOSER_ATTR}>${this._opts.cancel}</button>`;
+		}
+
+		_executeCallback(e) {
+			this._cb(this._isOkButtonEvent(e) ? true : false);
+		}
+	}
+
+	/** A Prompt dialog to replace native browser prompt() function */
+	class PromptDialog extends CPDialog {
+		_getInputElement(defaultValue) {
+			return `<input type="text" autofocus value="${defaultValue ? defaultValue : ''}"></input>`;
+		}
+
+		_getCancelButton() {
+			return `<button type="button" ${CLOSER_ATTR}>${this._opts.cancel}</button>`;
+		}
+
+		_executeCallback(e) {
+			this._cb(this._isOkButtonEvent(e) ? this.$el.querySelector('input').value : null);
+		}
+	}
+
+	// expose the external API to the caller/user of this code
+	return {
+		/*
+		* Shows a modal dialog to display a message.
+		* @param {String} message The message to be displayed in the modal dialog
+		* @param {Object} opts options including localized button labels
+		* @param {Function} cb the callback function to invoke when dialog is closed
+		*/
+		alert(message, opts, cb) {
+			return new AlertDialog(message, opts, cb).open();
+		},
+
+		/*
+		* Shows a modal dialog to prompt user to confirm an action.
+		* @param {String} message The message to be displayed in the modal dialog
+		* @param {Object} opts options including localized button labels
+		* @param {Function} cb the callback function to invoke when dialog is closed
+		*/
+		confirm(message, opts, cb) {
+			return new ConfirmDialog(message, opts, cb).open();
+		},
+
+		/*
+		* Shows a modal dialog to prompt user to confirm an action.
+		* @param {String} message The message to be displayed in the modal dialog
+		* @param {Object} opts options including localized button labels
+		* @param {Function} cb the callback function to invoke when dialog is closed
+		* @param {String} [defaultValue] the initial value of the input text box
+		*/
+		prompt(message, opts, cb, defaultValue) {
+			return new PromptDialog(message, opts, cb, defaultValue).open();
+		}
+	}
+
+})();
