@@ -17,7 +17,7 @@
     <apex:form id="theForm">
         <apex:inputField id="accountNameField" value="{!Account.Name}" />
         <br/>
-        <apex:commandButton id="save" action="{!save}" value="Save" onclick="event.preventDefault(); Dialog.confirm('Are you sure?', {ok: 'OK', cancel: 'Cancel'}, () => { validateAndSubmit(this) })" />
+        <apex:commandButton id="save" action="{!save}" value="Save" onclick="event.preventDefault(); Dialog.confirm('Are you sure?', {ok: 'OK', cancel: 'Cancel'}, (ret) => { if(ret) validateAndSubmit(this); })" />
     </apex:form>
     
     <script>
