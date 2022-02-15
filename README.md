@@ -59,3 +59,7 @@ This project introduces `Dialog.alert()`, `Dialog.confirm()`, and `Dialog.prompt
 8. To see an example of a confirm dialog, rename the account and save your changes. A confirm modal dialog should appear.
 
 9. To see an example of an alert dialog, add a special characer like !@#$%^&*() to the account name and save your changes. An alert dialog should display to indicate an error.
+
+\
+\
+Thank you to [KittyGiraudel](https://github.com/KittyGiraudel/a11y-dialog) for your previous work on a pure javascript dialog!
