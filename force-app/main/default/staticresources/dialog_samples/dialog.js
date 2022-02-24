@@ -28,13 +28,6 @@
  *   "open" - dialog has been opened
  *   "close" - dialog has been closed
  *  
- * @example:
- *   <apex:commandButton id="save" action="{!save}" value="Save"
- *     onclick="event.preventDefault(); Dialog.confirm(
- *       'Are you sure?', 
- *       {ok: 'Ok', cancel: 'Cancel'},
- *       (ret) => { if(ret) this.form.submit()) }
- *     )" />
  */
 
 let Dialog = (() => {
