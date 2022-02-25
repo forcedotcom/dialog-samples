@@ -17,7 +17,13 @@
     <apex:form id="theForm">
         <apex:inputField id="accountNameField" value="{!Account.Name}" />
         <br/> 
+        <!-- Because this is an asynchronous dialog, event.preventDefault() is added before displaying the dialog
+         to prevent the form being submitted on a button click, and allows user to interact with the dialog.
+         As such, an explicit call to form.submit() is needed to trigger form submision after the dialog is closed.
+         In this example, form.submit() is implemented in validateAndSubmit()
+        -->
         <apex:commandButton id="save" action="{!save}" value="Save" onclick="event.preventDefault(); Dialog.confirm('Are you sure?', {ok: 'OK', cancel: 'Cancel'}, (ret) => { if(ret) validateAndSubmit(this); })" />
+
     </apex:form>
     
     <script>
@@ -29,12 +35,8 @@
             var field = document.getElementById('{!$Component.theForm.accountNameField}');
             return new Promise((resolve, reject) => {                
                 if (isValidAccountName(field.value)) {
-                    // In cases where the form associated with this button
-                    // has inputFields and we expecte to have 
-                    // these values submitted when commandButton is click,
-                    // we need to append this hidden <input> to the
-                    // form as the <input> with attribute type="submit" will not be
-                    // submitted with the form when calling submit()
+                    //In order to perform the action of the apex:commandButton
+                    //must add a hidden input before submitting the form.
                     var hiddenInput = document.createElement('input');
                     hiddenInput.setAttribute('name', theButton.id);            
                     hiddenInput.setAttribute('value', theButton.value);
