@@ -8,7 +8,7 @@
 <apex:page standardController="Account">
 
     <!--
-        The dialog.js and dialog.css are required to use Dialog.showAlert and Dialog.showConfirm
+        The dialog.js and dialog.css are required to use Dialog.alert, Dialog.confirm, and Dialog.prompt
     -->
     <script type="text/javascript" src="{!URLFOR($Resource.dialog_samples, 'dialog.js')}" />
     <link rel="stylesheet" href="{!URLFOR($Resource.dialog_samples, 'dialog.css')}" />
@@ -16,8 +16,14 @@
     <h1>Edit Account Name</h1><br/><br/>
     <apex:form id="theForm">
         <apex:inputField id="accountNameField" value="{!Account.Name}" />
-        <br/>
-        <apex:commandButton id="save" action="{!save}" value="Save" onclick="event.preventDefault(); Dialog.showConfirm('Are you sure?', () => { validateAndSubmit(this) })" />
+        <br/> 
+        <!-- Because this is an asynchronous dialog, event.preventDefault() is added before displaying the dialog
+         to prevent the form being submitted on a button click, and allows user to interact with the dialog.
+         As such, an explicit call to form.submit() is needed to trigger form submision after the dialog is closed.
+         In this example, form.submit() is implemented in validateAndSubmit()
+        -->
+        <apex:commandButton id="save" action="{!save}" value="Save" onclick="event.preventDefault(); Dialog.confirm('Are you sure?', {ok: 'OK', cancel: 'Cancel'}, (ret) => { if(ret) validateAndSubmit(this); })" />
+
     </apex:form>
     
     <script>
@@ -28,15 +34,18 @@
         function validateAndSubmit(theButton) {
             var field = document.getElementById('{!$Component.theForm.accountNameField}');
             return new Promise((resolve, reject) => {                
-                if (isValidAccountName(field.value)) {                    
+                if (isValidAccountName(field.value)) {
+                    //In order to perform the action of the apex:commandButton
+                    //must add a hidden input before submitting the form.
                     var hiddenInput = document.createElement('input');
                     hiddenInput.setAttribute('name', theButton.id);            
                     hiddenInput.setAttribute('value', theButton.value);
                     hiddenInput.setAttribute('type', 'hidden');
                     theButton.form.appendChild(hiddenInput);
+
                     theButton.form.submit();
                 } else {
-                    Dialog.showAlert('Account name has invalid characters');
+                    Dialog.alert('Account name has invalid characters', {ok: 'OK'});
                     return false;
                 }    
             });                       
